@@ -1,15 +1,15 @@
-from abc import ABCMeta, abstractclassmethod
+from abc import ABCMeta, abstractclassmethod, abstractmethod
 from pathlib import Path
 
 
 class NaiveDsmccManager:
     __metaclass__ = ABCMeta
 
-    @abstractclassmethod
+    @abstractmethod
     def open_read(self, component_tag, module_id, resorce_name) -> bytearray:
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def get_module(self, component_tag, module_id):
         pass
 
