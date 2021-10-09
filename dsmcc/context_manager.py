@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractclassmethod, abstractmethod
-from util import singleton
+from dsmcc.dsmcc_manager import NaiveDsmccManager
+from util import arib_exceptions, singleton
 import re
 
 
@@ -104,7 +105,45 @@ class NameSpaceState:
         self._base_uri = None
         self._current_uri = None
 
+    def get_dsmcc_stream(self, path: str):
+        if not ContextManager().dsmcc:
+            raise arib_exceptions.NameSpaceDsmccNotFoundError(
+                "Dsmcc not found.")
+
+        if self.get_absolute_path(path):
+            return ContextManager().dsmcc.open_read(self._current_component_tag, self._current_module_id, self._current_resource_name)
+        else:
+            return None
+
+    def get_web_memory_stream(self, uri: str):
+        pass
+
+
+class AribdcState(NameSpaceState):
+    def get_stream(self, path):
+        return self.get_dsmcc_stream(path)
+
+    def launch_document(self, path):
+        super().launch_document(path)
+        # TODO: Complete the part of launching document from web
+        stream = self.get_dsmcc_stream(path)
+        if stream:
+            self.update_current_state(path)
+
+        return stream
+
+    def launch_document_restricted(self, path):
+        super().launch_document_restricted(path)
+        # TODO: Complete the part of launching document from web
+        return None
+
+
+class WebStateTemplate(NameSpaceState):
+    def get_stream(self, path):
+        return super().get_stream(path)
+
 
 @singleton
 class ContextManager:
+    dsmcc: NaiveDsmccManager
     pass
