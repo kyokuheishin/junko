@@ -1,0 +1,2 @@
+class NameSpaceDsmccNotFoundError(Exception):
+    pass
