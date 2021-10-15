@@ -1,7 +1,179 @@
-from abc import ABCMeta, abstractclassmethod, abstractmethod
+from abc import ABC, ABCMeta, abstractclassmethod, abstractmethod
+from typing import Match
 from dsmcc.dsmcc_manager import NaiveDsmccManager
 from util import arib_exceptions, singleton
 import re
+
+
+@singleton
+class NameSpaceStateContextManager:
+
+    dsmcc: NaiveDsmccManager
+
+    def __init__(self) -> None:
+        self._aribdc = AribdcState()
+        self._unlink = UnlinkState()
+        self._linked = LinkedState()
+        self._current_state = self._aribdc
+        pass
+
+    @property
+    def current_state(self):
+        return self._current_state
+
+    @current_state.setter
+    def current_state(self, val):
+        if self._current_state != val:
+            print(
+                f"Info name space stated has changed. Before {self._current_state.__class__} Now {val.__class__}")
+        self._current_state = val
+
+    @property
+    def is_aribdc(self):
+        return self._current_state == self._aribdc
+
+    @is_aribdc.setter
+    def is_aribdc(self, val):
+        if val:
+            self._current_state = self._aribdc
+        return
+
+    @property
+    def is_linked(self):
+        return self._current_state == self._linked
+
+    @is_linked.setter
+    def is_linked(self, val):
+        if val:
+            self._current_state = self._linked
+
+    @property
+    def is_unlink(self):
+        return self._current_state == self._unlink
+
+    @is_unlink.setter
+    def is_unlink(self, val):
+        if val:
+            self._current_state = self._unlink
+
+    @property
+    def current_component_tag(self):
+        return self._current_state._current_component_tag.lower() if self._current_state._current_component_tag else None
+
+    @current_component_tag.setter
+    def current_component_tag(self, val):
+        self._current_state._current_component_tag = val
+
+    @property
+    def current_module_id(self):
+        return self._current_state._current_module_id
+
+    @current_module_id.setter
+    def current_module_id(self, val):
+        self._current_state._current_module_id = val
+
+    @property
+    def current_resource_name(self):
+        return self._current_state._current_resource_name.lower() if self._current_state._current_resource_name else None
+
+    @property
+    def current_uri(self):
+        return self._current_state._current_uri
+
+    @property
+    def base_uri(self):
+        return self._current_state._base_uri
+
+    @property
+    def active_document_name(self):
+        if self.is_aribdc:
+            name = f"/{self.current_component_tag}/{self.current_module_id}"
+            if self.current_resource_name != "" and self.current_resource_name:
+                name += f"/{self.current_resource_name}"
+                return name
+            elif self.current_uri != "" and self.current_uri:
+                # TODO: Implements the part of reading the name of active document from web
+                return ""
+
+    def get_stream(self, path: str):
+        return
+
+    def launch_document(self, path: str):
+        try:
+            stream = self.current_state.launch_document(path)
+        except Exception as e:
+            print(e.args)
+        else:
+            return stream
+
+    def launch_document_restricted(self, path: str):
+        try:
+            stream = self.current_state.launch_document_restricted(path)
+        except Exception as e:
+            print(e.args)
+        else:
+            return stream
+
+    def get_resource(self, decoder: function, path: str, arg):
+        if not path or path == "" or path.strip() == "":
+            return None
+
+        stream = self.get_stream(path)
+
+        if stream:
+            result = decoder(stream, arg)
+
+        return result
+
+    def bitmap_resource_reader(self, stream, arg):
+        # TODO: Implement the function of readign bitmap resource
+        pass
+
+    def get_resource_as_bitmap(self, path):
+        return self.get_resource(self.bitmap_resource_reader, path, None)
+
+    def get_absoulte_component_path(self, path: str):
+        m: Match = re.match(r"([0-9A-Fa-f]{2})")
+        if m:
+            return f"/{m.group(0).lower()}"
+        else:
+            return f"/{self.current_component_tag}"
+
+    def get_absolute_module_path(self, path: str):
+        if not path or path == "":
+            return None
+
+        path = path.strip()
+        path = re.sub(r'^~/', "/"+self._current_component_tag+"/", path)
+
+        if "/" not in path:
+            path = f"/{self._current_component_tag}/{path}"
+
+        m = re.match(r"([0-9A-Fa-f]{2})/([0-9A-Fa-f]{4})$")
+        if m:
+            self._current_component_tag = m.group(1)
+            self._current_module_id = m.group(2)
+            return path
+
+        return None
+
+    def get_absolute_res_path(self, path: str):
+        pass
+
+    def update_current_state(self, path: str):
+        self.get_absolute_path(path)
+        self._base_uri = None
+        self._current_uri = None
+
+    def get_web_memory_stream(self, uri: str):
+        pass
+
+    def get_active_document_as_stream(self):
+        if self.is_aribdc:
+            return self.dsmcc.open_read(self._current_component_tag, self._current_module_id, self._current_resource_name)
+        else:
+            # TODO: Implements the part of reading contents from web
+            pass
 
 
 class NameSpaceState:
@@ -27,31 +199,21 @@ class NameSpaceState:
     def launch_document_restricted(self, path):
         pass
 
-    @property
-    def current_component_tag(self):
-        return self._current_component_tag.lower() if self._current_component_tag else None
+    def get_dsmcc_stream(self, path: str):
+        if not self.dsmcc:
+            raise arib_exceptions.NameSpaceDsmccNotFoundError(
+                "Dsmcc not found.")
 
-    @current_component_tag.setter
-    def current_component_tag(self, val):
-        self._current_component_tag = val
-
-    @property
-    def current_resource_name(self):
-        return self._current_resource_name.lower() if self._current_resource_name else None
-
-    @property
-    def current_uri(self):
-        return self._current_uri
-
-    @property
-    def base_uri(self):
-        return self._base_uri
-
-    def get_absolute_path(self, arg: str):
-        if not arg or arg == "":
+        if self.get_absolute_path(path):
+            return self.dsmcc.open_read(self.current_component_tag, self.current_module_id, self.current_resource_name)
+        else:
             return None
 
-        path = arg.strip()
+    def get_absolute_path(self, path: str):
+        if not path or path == "":
+            return None
+
+        path = path.strip()
         path = re.sub(r'^~/', "/"+self._current_component_tag+"/", path)
 
         #case: "/<component>/<module>"
@@ -100,24 +262,6 @@ class NameSpaceState:
             return f"/{self._current_component_tag}/{self._current_module_id}/{self._current_resource_name}"
         return None
 
-    def update_current_state(self, path: str):
-        self.get_absolute_path(path)
-        self._base_uri = None
-        self._current_uri = None
-
-    def get_dsmcc_stream(self, path: str):
-        if not ContextManager().dsmcc:
-            raise arib_exceptions.NameSpaceDsmccNotFoundError(
-                "Dsmcc not found.")
-
-        if self.get_absolute_path(path):
-            return ContextManager().dsmcc.open_read(self._current_component_tag, self._current_module_id, self._current_resource_name)
-        else:
-            return None
-
-    def get_web_memory_stream(self, uri: str):
-        pass
-
 
 class AribdcState(NameSpaceState):
     def get_stream(self, path):
@@ -143,7 +287,11 @@ class WebStateTemplate(NameSpaceState):
         return super().get_stream(path)
 
 
-@singleton
-class ContextManager:
-    dsmcc: NaiveDsmccManager
-    pass
+class UnlinkState(WebStateTemplate):
+    def get_stream(self, path):
+        return super().get_stream(path)
+
+
+class LinkedState(WebStateTemplate):
+    def get_stream(self, path):
+        return super().get_stream(path)
