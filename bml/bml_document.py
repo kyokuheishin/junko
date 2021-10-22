@@ -1,4 +1,4 @@
-import lxml
+from lxml import etree
 
 
 class BmlDocument:
@@ -12,5 +12,6 @@ class BmlDocument:
     major_version: int = 0
     minor_version: int = 0
 
-    def load(self, stream):
+    def __init__(self, stream: bytes) -> None:
+        etree.parse(stream)
         return
